@@ -52,9 +52,9 @@ async function crawlUrls(urls, onProgress) {
     let error = null;
 
     try {
-      await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
+      await page.goto(url, { waitUntil: "networkidle", timeout: 20000 });
 
-      const iframeElement = await page.waitForSelector("#cafe_main", { timeout: 30000 });
+      const iframeElement = await page.waitForSelector("#cafe_main", { timeout: 20000 });
       const frame = await iframeElement.contentFrame();
 
       if (!frame) throw new Error("iframe을 찾을 수 없습니다.");
@@ -96,22 +96,21 @@ async function crawlUrls(urls, onProgress) {
 }
 
 function saveResultsToExcel(results, failures, filePath) {
-  const wb = XLSX.utils.book_new();
-
-  // 성공 결과 시트
   const header = ["URL", "제목", "조회수", "댓글수", "좋아요"];
   const rows = results.map((r) => [r.url, r.title, r.views, r.comments, r.likes]);
-  const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
-  XLSX.utils.book_append_sheet(wb, ws, "결과");
 
-  // 실패 목록 시트
+  const data = [header, ...rows];
+
+  // 성공 결과 아래에 실패 목록 추가
   if (failures.length > 0) {
-    const failHeader = ["URL", "에러"];
-    const failRows = failures.map((f) => [f.url, f.error]);
-    const failWs = XLSX.utils.aoa_to_sheet([failHeader, ...failRows]);
-    XLSX.utils.book_append_sheet(wb, failWs, "실패 목록");
+    data.push([]); // 빈 줄
+    data.push(["실패"]);
+    failures.forEach((f) => data.push([f.url]));
   }
 
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "결과");
   XLSX.writeFile(wb, filePath);
 }
 

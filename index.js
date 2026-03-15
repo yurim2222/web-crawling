@@ -17,7 +17,7 @@ async function crawl(url, browser) {
 
   try {
     console.log(`\n▶ Visiting: ${url}`);
-    await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
+    await page.goto(url, { waitUntil: "networkidle", timeout: 20000 });
 
     // Naver Cafe는 콘텐츠를 #cafe_main iframe 안에 렌더링함
     const iframeElement = await page.waitForSelector("#cafe_main", { timeout: 10000 });
