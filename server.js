@@ -59,7 +59,7 @@ app.post("/api/crawl", upload.single("file"), (req, res) => {
     current: 0,
     results: [],
     errors: [],
-    sseClients: [],
+    progressLog: [],
   };
   jobs.set(jobId, job);
 
@@ -69,62 +69,51 @@ app.post("/api/crawl", upload.single("file"), (req, res) => {
   crawlUrls(urls, (progress) => {
     job.current = progress.current;
 
+    const entry = {
+      current: progress.current,
+      total: progress.total,
+      url: progress.url,
+      result: progress.result,
+      error: progress.error,
+    };
+    job.progressLog.push(entry);
+
     if (progress.result) {
       job.results.push(progress.result);
     }
     if (progress.error) {
       job.errors.push({ url: progress.url, error: progress.error });
     }
-
-    // SSE로 진행 상황 전송
-    const eventData = JSON.stringify({
-      current: progress.current,
-      total: progress.total,
-      url: progress.url,
-      result: progress.result,
-      error: progress.error,
-    });
-
-    job.sseClients.forEach((client) => {
-      client.write(`data: ${eventData}\n\n`);
-    });
   })
     .then((results) => {
       job.status = "done";
 
-      // 결과 Excel 저장
       if (results.length > 0) {
         const outputPath = path.join(resultsDir, `${jobId}.xlsx`);
         saveResultsToExcel(results, outputPath);
       }
-
-      // 완료 이벤트 전송
-      job.sseClients.forEach((client) => {
-        client.write(`event: done\ndata: ${JSON.stringify({ jobId, resultCount: results.length })}\n\n`);
-      });
     })
     .catch((err) => {
       job.status = "error";
-      job.sseClients.forEach((client) => {
-        client.write(`event: error\ndata: ${JSON.stringify({ message: err.message })}\n\n`);
-      });
+      job.errorMessage = err.message;
     });
 });
 
-// SSE 진행 상황 스트림
+// 폴링으로 진행 상황 조회
 app.get("/api/progress/:jobId", (req, res) => {
   const job = jobs.get(req.params.jobId);
   if (!job) return res.status(404).json({ error: "작업을 찾을 수 없습니다." });
 
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-  res.flushHeaders();
+  const after = parseInt(req.query.after) || 0;
+  const newEntries = job.progressLog.slice(after);
 
-  job.sseClients.push(res);
-
-  req.on("close", () => {
-    job.sseClients = job.sseClients.filter((c) => c !== res);
+  res.json({
+    status: job.status,
+    total: job.total,
+    current: job.current,
+    resultCount: job.results.length,
+    entries: newEntries,
+    errorMessage: job.errorMessage || null,
   });
 });
 
