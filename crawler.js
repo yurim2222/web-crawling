@@ -41,13 +41,23 @@ async function crawlSingle(url, frame) {
 
 async function crawlUrls(urls, onProgress) {
   const CONCURRENCY = 2;
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({
+    headless: true,
+    args: [
+      "--no-sandbox",
+      "--disable-blink-features=AutomationControlled",
+    ],
+  });
   const results = [];
   const failures = [];
   let completed = 0;
 
   async function processUrl(url) {
     const page = await browser.newPage();
+    await page.setExtraHTTPHeaders({ "Accept-Language": "ko-KR,ko;q=0.9" });
+    await page.context().addInitScript(() => {
+      Object.defineProperty(navigator, "webdriver", { get: () => false });
+    });
     let result = null;
     let error = null;
 
