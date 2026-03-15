@@ -85,12 +85,13 @@ app.post("/api/crawl", upload.single("file"), (req, res) => {
       job.errors.push({ url: progress.url, error: progress.error });
     }
   })
-    .then((results) => {
+    .then(({ results, failures }) => {
       job.status = "done";
+      job.failures = failures;
 
-      if (results.length > 0) {
+      if (results.length > 0 || failures.length > 0) {
         const outputPath = path.join(resultsDir, `${jobId}.xlsx`);
-        saveResultsToExcel(results, outputPath);
+        saveResultsToExcel(results, failures, outputPath);
       }
     })
     .catch((err) => {
@@ -112,6 +113,7 @@ app.get("/api/progress/:jobId", (req, res) => {
     total: job.total,
     current: job.current,
     resultCount: job.results.length,
+    failures: job.failures || [],
     entries: newEntries,
     errorMessage: job.errorMessage || null,
   });

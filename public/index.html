@@ -246,6 +246,11 @@
         </table>
       </div>
 
+      <div id="failureSection" style="display:none; margin-top: 24px;">
+        <h3 style="color: #f53535; font-size: 15px; margin-bottom: 12px;">[실패]</h3>
+        <ul id="failureList" style="list-style: none; padding: 0; margin: 0;"></ul>
+      </div>
+
       <button class="btn btn-download" id="downloadBtn" style="display:none">결과 다운로드 (.xlsx)</button>
     </div>
   </div>
@@ -329,6 +334,8 @@
       startBtn.textContent = '크롤링 중...';
       resultBody.innerHTML = '';
       downloadBtn.style.display = 'none';
+      document.getElementById('failureSection').style.display = 'none';
+      document.getElementById('failureList').innerHTML = '';
       progressSection.style.display = 'block';
       progressBar.style.width = '0%';
       progressBar.textContent = '0%';
@@ -347,6 +354,7 @@
 
         const jobId = data.jobId;
         let seen = 0;
+        const failedItems = [];
 
         // 폴링으로 진행 상황 확인
         const pollInterval = setInterval(async () => {
@@ -370,26 +378,39 @@
                   '<td>' + escapeHtml(d.result.views) + '</td>' +
                   '<td>' + escapeHtml(d.result.comments) + '</td>' +
                   '<td>' + escapeHtml(d.result.likes) + '</td>';
-              } else {
-                tr.innerHTML =
-                  '<td>' + d.current + '</td>' +
-                  '<td class="status-err">실패</td>' +
-                  '<td colspan="4" class="status-err">' + escapeHtml(d.error || '알 수 없는 오류') + '</td>';
+                resultBody.appendChild(tr);
               }
-              resultBody.appendChild(tr);
+              // 실패 항목은 진행 테이블에 넣지 않고, 아래 실패 목록에 모아서 표시
+              if (d.error) {
+                failedItems.push({ url: d.url, error: d.error });
+              }
               seen++;
             });
 
             // 완료 또는 에러 시 폴링 중지
             if (p.status === 'done') {
               clearInterval(pollInterval);
-              progressText.textContent = '완료! ' + p.resultCount + '건 수집';
+              const failCount = failedItems.length;
+              progressText.textContent = '완료! 성공 ' + p.resultCount + '건' + (failCount > 0 ? ', 실패 ' + failCount + '건' : '');
               progressBar.style.width = '100%';
               progressBar.textContent = '100%';
               startBtn.disabled = false;
               startBtn.textContent = '크롤링 시작';
 
-              if (p.resultCount > 0) {
+              // 실패 목록 표시
+              if (failedItems.length > 0) {
+                const failureSection = document.getElementById('failureSection');
+                const failureList = document.getElementById('failureList');
+                failureSection.style.display = 'block';
+                failedItems.forEach((f) => {
+                  const li = document.createElement('li');
+                  li.style.cssText = 'padding: 6px 0; border-bottom: 1px solid #f0f0f0;';
+                  li.innerHTML = '<a href="' + escapeHtml(f.url) + '" target="_blank" style="color:#0076ff; word-break:break-all; font-size:14px;">' + escapeHtml(f.url) + '</a>';
+                  failureList.appendChild(li);
+                });
+              }
+
+              if (p.resultCount > 0 || failCount > 0) {
                 downloadBtn.style.display = 'block';
                 downloadBtn.onclick = () => {
                   window.location.href = '/api/download/' + jobId;
