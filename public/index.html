@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>네이버 카페 크롤러</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, 'Malgun Gothic', sans-serif;
+      background: #f5f6f8;
+      color: #333;
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 40px 20px;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 8px;
+      font-size: 24px;
+    }
+    .subtitle {
+      text-align: center;
+      color: #888;
+      margin-bottom: 32px;
+      font-size: 14px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #eee;
+    }
+    .tab {
+      padding: 10px 20px;
+      cursor: pointer;
+      border: none;
+      background: none;
+      font-size: 15px;
+      color: #888;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: all 0.2s;
+    }
+    .tab.active {
+      color: #03c75a;
+      border-bottom-color: #03c75a;
+      font-weight: 600;
+    }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* 파일 업로드 */
+    .drop-zone {
+      border: 2px dashed #ccc;
+      border-radius: 8px;
+      padding: 40px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: #888;
+    }
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: #03c75a;
+      background: #f0faf4;
+      color: #03c75a;
+    }
+    .drop-zone input { display: none; }
+    .file-name {
+      margin-top: 8px;
+      font-size: 13px;
+      color: #03c75a;
+      font-weight: 600;
+    }
+
+    /* URL 입력 */
+    textarea {
+      width: 100%;
+      height: 150px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 14px;
+      resize: vertical;
+      font-family: inherit;
+    }
+    textarea:focus { outline: none; border-color: #03c75a; }
+    .hint { font-size: 12px; color: #aaa; margin-top: 6px; }
+
+    /* 버튼 */
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-top: 16px;
+    }
+    .btn-start {
+      background: #03c75a;
+      color: #fff;
+    }
+    .btn-start:hover { background: #02b050; }
+    .btn-start:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .btn-download {
+      background: #0076ff;
+      color: #fff;
+    }
+    .btn-download:hover { background: #0060d0; }
+
+    /* 진행 상황 */
+    .progress-section { display: none; }
+    .progress-bar-wrap {
+      background: #eee;
+      border-radius: 20px;
+      height: 24px;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+    .progress-bar {
+      height: 100%;
+      background: #03c75a;
+      border-radius: 20px;
+      transition: width 0.3s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+      min-width: 40px;
+    }
+    .progress-text {
+      text-align: center;
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 16px;
+    }
+
+    /* 결과 테이블 */
+    .result-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .result-table th {
+      background: #f8f9fa;
+      padding: 10px 8px;
+      text-align: left;
+      border-bottom: 2px solid #eee;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .result-table td {
+      padding: 8px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .result-table tr:hover td { background: #fafafa; }
+    .url-cell {
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .status-ok { color: #03c75a; }
+    .status-err { color: #f53535; }
+
+    .error-msg {
+      color: #f53535;
+      background: #fff5f5;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-top: 12px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>네이버 카페 크롤러</h1>
+    <p class="subtitle">카페 게시글의 제목, 조회수, 댓글수, 좋아요를 수집합니다</p>
+
+    <!-- 입력 -->
+    <div class="card" id="inputCard">
+      <div class="tabs">
+        <button class="tab active" data-tab="file">파일 업로드</button>
+        <button class="tab" data-tab="url">URL 직접 입력</button>
+      </div>
+
+      <div class="tab-content active" id="tab-file">
+        <div class="drop-zone" id="dropZone">
+          <input type="file" id="fileInput" accept=".xlsx,.xls">
+          <p>Excel 파일을 드래그하거나 클릭해서 선택하세요</p>
+          <p style="font-size:12px; margin-top:8px; color:#aaa">(.xlsx / .xls)</p>
+          <p class="file-name" id="fileName"></p>
+        </div>
+      </div>
+
+      <div class="tab-content" id="tab-url">
+        <textarea id="urlInput" placeholder="URL을 한 줄에 하나씩 입력하세요&#10;&#10;https://cafe.naver.com/example/123&#10;https://cafe.naver.com/example/456"></textarea>
+        <p class="hint">한 줄에 하나의 URL을 입력하세요</p>
+      </div>
+
+      <div class="error-msg" id="errorMsg"></div>
+      <button class="btn btn-start" id="startBtn">크롤링 시작</button>
+    </div>
+
+    <!-- 진행 상황 -->
+    <div class="card progress-section" id="progressSection">
+      <div class="progress-bar-wrap">
+        <div class="progress-bar" id="progressBar" style="width: 0%">0%</div>
+      </div>
+      <p class="progress-text" id="progressText">준비 중...</p>
+
+      <div style="overflow-x: auto;">
+        <table class="result-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>상태</th>
+              <th>제목</th>
+              <th>조회수</th>
+              <th>댓글</th>
+              <th>좋아요</th>
+            </tr>
+          </thead>
+          <tbody id="resultBody"></tbody>
+        </table>
+      </div>
+
+      <button class="btn btn-download" id="downloadBtn" style="display:none">결과 다운로드 (.xlsx)</button>
+    </div>
+  </div>
+
+  <script>
+    const tabs = document.querySelectorAll('.tab');
+    const startBtn = document.getElementById('startBtn');
+    const fileInput = document.getElementById('fileInput');
+    const dropZone = document.getElementById('dropZone');
+    const fileName = document.getElementById('fileName');
+    const urlInput = document.getElementById('urlInput');
+    const progressSection = document.getElementById('progressSection');
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+    const resultBody = document.getElementById('resultBody');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const errorMsg = document.getElementById('errorMsg');
+
+    let activeTab = 'file';
+    let selectedFile = null;
+
+    // 탭 전환
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        activeTab = tab.dataset.tab;
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        document.getElementById('tab-' + activeTab).classList.add('active');
+      });
+    });
+
+    // 파일 드래그 & 드롭
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('drag-over');
+    });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      if (e.dataTransfer.files.length) {
+        selectedFile = e.dataTransfer.files[0];
+        fileName.textContent = selectedFile.name;
+      }
+    });
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files.length) {
+        selectedFile = fileInput.files[0];
+        fileName.textContent = selectedFile.name;
+      }
+    });
+
+    // 에러 표시
+    function showError(msg) {
+      errorMsg.textContent = msg;
+      errorMsg.style.display = 'block';
+      setTimeout(() => { errorMsg.style.display = 'none'; }, 5000);
+    }
+
+    // 크롤링 시작
+    startBtn.addEventListener('click', async () => {
+      errorMsg.style.display = 'none';
+
+      let body;
+      let headers = {};
+
+      if (activeTab === 'file') {
+        if (!selectedFile) return showError('Excel 파일을 선택해주세요.');
+        body = new FormData();
+        body.append('file', selectedFile);
+      } else {
+        const text = urlInput.value.trim();
+        if (!text) return showError('URL을 입력해주세요.');
+        body = JSON.stringify({ urls: text });
+        headers['Content-Type'] = 'application/json';
+      }
+
+      startBtn.disabled = true;
+      startBtn.textContent = '크롤링 중...';
+      resultBody.innerHTML = '';
+      downloadBtn.style.display = 'none';
+      progressSection.style.display = 'block';
+      progressBar.style.width = '0%';
+      progressBar.textContent = '0%';
+      progressText.textContent = '크롤링을 시작합니다...';
+
+      try {
+        const res = await fetch('/api/crawl', { method: 'POST', headers, body });
+        const data = await res.json();
+
+        if (!res.ok) {
+          showError(data.error || '오류가 발생했습니다.');
+          startBtn.disabled = false;
+          startBtn.textContent = '크롤링 시작';
+          return;
+        }
+
+        const jobId = data.jobId;
+
+        // SSE로 진행 상황 수신
+        const es = new EventSource('/api/progress/' + jobId);
+
+        es.onmessage = (e) => {
+          const d = JSON.parse(e.data);
+          const pct = Math.round((d.current / d.total) * 100);
+          progressBar.style.width = pct + '%';
+          progressBar.textContent = pct + '%';
+          progressText.textContent = d.current + ' / ' + d.total + ' 처리 중...';
+
+          const tr = document.createElement('tr');
+          if (d.result) {
+            tr.innerHTML =
+              '<td>' + d.current + '</td>' +
+              '<td class="status-ok">성공</td>' +
+              '<td>' + escapeHtml(d.result.title) + '</td>' +
+              '<td>' + escapeHtml(d.result.views) + '</td>' +
+              '<td>' + escapeHtml(d.result.comments) + '</td>' +
+              '<td>' + escapeHtml(d.result.likes) + '</td>';
+          } else {
+            tr.innerHTML =
+              '<td>' + d.current + '</td>' +
+              '<td class="status-err">실패</td>' +
+              '<td colspan="4" class="status-err">' + escapeHtml(d.error || '알 수 없는 오류') + '</td>';
+          }
+          resultBody.appendChild(tr);
+        };
+
+        es.addEventListener('done', (e) => {
+          es.close();
+          const d = JSON.parse(e.data);
+          progressText.textContent = '완료! ' + d.resultCount + '건 수집';
+          progressBar.style.width = '100%';
+          progressBar.textContent = '100%';
+          startBtn.disabled = false;
+          startBtn.textContent = '크롤링 시작';
+
+          if (d.resultCount > 0) {
+            downloadBtn.style.display = 'block';
+            downloadBtn.onclick = () => {
+              window.location.href = '/api/download/' + jobId;
+            };
+          }
+        });
+
+        es.addEventListener('error', () => {
+          es.close();
+          progressText.textContent = '오류가 발생했습니다.';
+          startBtn.disabled = false;
+          startBtn.textContent = '크롤링 시작';
+        });
+
+      } catch (err) {
+        showError('서버에 연결할 수 없습니다.');
+        startBtn.disabled = false;
+        startBtn.textContent = '크롤링 시작';
+      }
+    });
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+  </script>
+</body>
+</html>
