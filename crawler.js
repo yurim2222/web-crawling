@@ -21,42 +21,50 @@ async function crawlSingle(url, frame) {
 }
 
 async function crawlUrls(urls, onProgress) {
+  const CONCURRENCY = 3; // 동시에 3개씩 처리
   const browser = await chromium.launch({ headless: true });
   const results = [];
+  let completed = 0;
+
+  async function processUrl(url) {
+    const page = await browser.newPage();
+    let result = null;
+    let error = null;
+
+    try {
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 20000 });
+
+      const iframeElement = await page.waitForSelector("#cafe_main", { timeout: 10000 });
+      const frame = await iframeElement.contentFrame();
+
+      if (!frame) throw new Error("iframe을 찾을 수 없습니다.");
+
+      await frame.waitForLoadState("domcontentloaded");
+      result = await crawlSingle(url, frame);
+      results.push(result);
+    } catch (err) {
+      error = err.message;
+    } finally {
+      await page.close();
+    }
+
+    completed++;
+    if (onProgress) {
+      onProgress({
+        current: completed,
+        total: urls.length,
+        url,
+        result,
+        error,
+      });
+    }
+  }
 
   try {
-    for (let i = 0; i < urls.length; i++) {
-      const url = urls[i];
-      const page = await browser.newPage();
-      let result = null;
-      let error = null;
-
-      try {
-        await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
-
-        const iframeElement = await page.waitForSelector("#cafe_main", { timeout: 10000 });
-        const frame = await iframeElement.contentFrame();
-
-        if (!frame) throw new Error("iframe을 찾을 수 없습니다.");
-
-        await frame.waitForLoadState("domcontentloaded");
-        result = await crawlSingle(url, frame);
-        results.push(result);
-      } catch (err) {
-        error = err.message;
-      } finally {
-        await page.close();
-      }
-
-      if (onProgress) {
-        onProgress({
-          current: i + 1,
-          total: urls.length,
-          url,
-          result,
-          error,
-        });
-      }
+    // CONCURRENCY 개씩 병렬 처리
+    for (let i = 0; i < urls.length; i += CONCURRENCY) {
+      const batch = urls.slice(i, i + CONCURRENCY);
+      await Promise.all(batch.map((url) => processUrl(url)));
     }
   } finally {
     await browser.close();
